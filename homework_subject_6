@@ -1,0 +1,86 @@
+#------------------------------------------------------------------------------------------------------------------------
+#Тема 6 "Операторы, фильтрация, сортировка и ограничение. Агрегация данных"
+#------------------------------------------------------------------------------------------------------------------------
+
+-- 1 . Пусть задан некоторый пользователь. 
+-- Из всех друзей этого пользователя найдите человека, который больше всех общался с нашим пользователем.
+
+-- Здесь и далее используем БД vk, созданную в рамках домашней работы под номером 3. Дамп БД с тестовыми данными приложен
+-- к текущей ДЗ.
+-- Пусть задан пользователь под номером 52. Выбираем всех друзей из таблицы friendship, инициатором дружбы с которыми,
+-- выступал указанный пользователь. 
+SELECT friend_id FROM friendship WHERE user_id = 52;
+
+-- Считаем количество сообщений от этих друзей и записываем в таблицу max_messages (при этом не важно, кто был инициатором
+-- разговора: пользователь 52 либо его друг). Сортируем таблицу max_messages в порядке убывания количества сообщений
+-- и выбираем первую строку с помощью ключевого слова LIMIT.
+
+SELECT cnt as 'количество сообщений', from_user_id, to_user_id
+FROM (SELECT count(id) as cnt, from_user_id, to_user_id
+FROM messages
+WHERE from_user_id = 52
+AND to_user_id IN (SELECT friend_id FROM friendship WHERE user_id = 52)
+GROUP BY from_user_id, to_user_id
+UNION
+SELECT count(id) as cnt, from_user_id, to_user_id
+FROM messages
+WHERE to_user_id = 52
+AND from_user_id IN (SELECT friend_id FROM friendship WHERE user_id = 52)
+GROUP BY from_user_id, to_user_id) as max_messages
+ORDER BY cnt DESC
+LIMIT 1;
+
+-- 2. Подсчитать общее количество лайков, которые получили 10 самых молодых пользователей.
+-- Создаем таблицу самых молодых пользователей, используя таблицу users, сортировку возраста по убыванию даты рождения и
+-- ключевое слово LIMIT 
+CREATE TABLE top10_youngest_users as
+(SELECT id FROM users ORDER BY data_of_birth DESC LIMIT 10);
+
+-- Считаем количество поставленных лайков этим пользователям (to user)
+SELECT count(id) as 'количество лайков', to_user
+FROM likes
+WHERE to_user in (SELECT id FROM top10_youngest_users) 
+GROUP BY to_user;
+
+-- 3. Определить кто больше поставил лайков (всего) - мужчины или женщины?
+-- Связываем таблицу с лайками likes и пользователей profiles с помощью атрибута from_user (поставленные лайки)
+-- Считаем количество лайков, сортируем по убыванию, используем LIMIT 1
+
+SELECT count(likes.id) as 'количество поставленных лайков', gender
+FROM profiles
+INNER JOIN likes on likes.from_user = profiles.user_id
+GROUP BY gender
+ORDER BY count(likes.id) DESC
+LIMIT 1
+
+-- 4. Найти 10 пользователей, которые проявляют наименьшую активность в использовании социальной сети.
+-- Создаем таблицу low_like_activity, связывая users с таблицей лайков с помощью оператора LEFT JOIN. Так мы сможем увидеть
+-- пользователей, кто не поставил ни одного лайка.
+
+CREATE table low_like_activity as 
+(SELECT count(likes.id) as cnt_likes, users.id
+FROM users
+LEFT JOIN likes on likes.from_user = users.id
+GROUP BY users.id
+ORDER BY count(likes.id) 
+);
+COMMIT;
+
+-- Создаем таблицу low_message_activity, связывая users с таблицей messages с помощью оператора LEFT JOIN. Так мы сможем
+-- увидеть пользователей, кто не отправил ни одного сообщения.
+CREATE table low_message_activity as 
+(SELECT count(messages.id) as cnt_messages, users.id
+FROM users
+LEFT JOIN messages on messages.from_user_id = users.id
+GROUP BY users.id
+ORDER BY count(messages.id)
+);
+COMMIT;
+
+-- Суммируем 'активность' в vk и выводим top10 наименее активных, используя ключевое слово LIMIT 10
+SELECT cnt_likes + cnt_messages, low_like_activity.id
+FROM low_like_activity
+LEFT JOIN low_message_activity on low_message_activity.id = low_like_activity.id
+ORDER BY cnt_likes + cnt_messages
+LIMIT 10;
+
