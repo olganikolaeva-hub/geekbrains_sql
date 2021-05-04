@@ -1,0 +1,568 @@
+#------------------------------------------------------------------------------------------------------------------------
+# Тема "Введение в проектирование БД"
+# Создание таблиц БД vk и генерация тестовых данных с учетом логики связей атрибутов. Реализация таблицы с лайками.
+#------------------------------------------------------------------------------------------------------------------------
+
+#1. Создание таблиц БД vk и генерация тестовых данных с учетом логики связей атрибутов. 
+
+CREATE DATABASE vk;
+USE vk;
+
+-- Таблица users c ограничением на количество и тип допустимых символов атрибута phone-----------------------------------
+CREATE TABLE users (
+	id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT "Идентификатор строки", 
+	first_name VARCHAR(100) NOT NULL COMMENT "Имя пользователя",
+    last_name VARCHAR(100) NOT NULL COMMENT "Фамилия пользователя",
+    email VARCHAR(100) NOT NULL UNIQUE COMMENT "Почта",
+    phone VARCHAR(100) NOT NULL UNIQUE COMMENT "Телефон",
+    data_of_birth DATETIME COMMENT "Дата рождения",
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT "Время создания строки",  
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT "Время обновления строки"
+);
+
+ALTER TABLE users ADD CONSTRAINT `phone_check` CHECK (REGEXP_LIKE(phone, '[0-9]{10}'));
+
+-- Таблица профилей и внешний ключ для связи с таблицей users--------------------------------------------------
+CREATE TABLE profiles (
+  user_id INT UNSIGNED NOT NULL PRIMARY KEY COMMENT "Ссылка на пользователя", 
+  gender CHAR(1) NOT NULL COMMENT "Пол",
+  city VARCHAR(130) COMMENT "Город проживания",
+  country VARCHAR(130) COMMENT "Страна проживания",
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT "Время создания строки",  
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT "Время обновления строки"
+) COMMENT "Профили"; 
+
+ALTER TABLE profiles ADD CONSTRAINT fk_profiles_users FOREIGN KEY (user_id) REFERENCES users (id);
+
+-- Таблица статусов дружеских отношений----------------------------------------------------------------------------------
+CREATE TABLE friendship_statuses (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT "Идентификатор строки",
+  name VARCHAR(150) NOT NULL UNIQUE COMMENT "Название статуса",
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT "Время создания строки",  
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT "Время обновления строки"  
+) COMMENT "Статусы дружбы";
+
+-- Таблица отношений пользователей и внешние ключи для связи с таблицами users и friendship_statuses----------------------
+CREATE TABLE friendship (
+  user_id INT UNSIGNED NOT NULL COMMENT "Ссылка на инициатора дружеских отношений",
+  friend_id INT UNSIGNED NOT NULL COMMENT "Ссылка на получателя приглашения дружить",
+  friendship_status_id INT UNSIGNED NOT NULL COMMENT "Ссылка на текущее состояние",
+  requested_at DATETIME DEFAULT NOW() COMMENT "Время отправления приглашения дружить",
+  confirmed_at DATETIME COMMENT "Время подтверждения приглашения",
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT "Время создания строки",  
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT "Время обновления строки",  
+  PRIMARY KEY (user_id, friend_id) COMMENT "Составной первичный ключ"
+) COMMENT "Таблица дружбы";
+
+ALTER TABLE friendship ADD CONSTRAINT fk_friendship_users_1 FOREIGN KEY (user_id) REFERENCES users (id);
+ALTER TABLE friendship ADD CONSTRAINT fk_friendship_users_2 FOREIGN KEY (friend_id) REFERENCES users (id);
+ALTER TABLE friendship ADD CONSTRAINT fk_friendship_status FOREIGN KEY (friendship_status_id) REFERENCES friendship_statuses (id);
+
+-- Таблица статусов сообщений-------------------------------------------------------------------------------------------
+CREATE TABLE message_statues (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL UNIQUE,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT "Время создания строки",  
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT "Время обновления строки"  
+) COMMENT "Статусы сообщений";
+
+-- Таблица с типами пересылаемых медиа------------------------------------------------------------------------------------
+CREATE TABLE media_types (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL UNIQUE,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT "Время создания строки",  
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT "Время обновления строки"  
+) COMMENT "Типы медиаданных";
+
+-- Таблица сообщений пересылаемых от пользователя к пользователю и внешние ключи для связи с таблицами users, message_statues 
+-- и media_types----------------------------------------------------------------------------------------------------------
+CREATE TABLE messages (
+	id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT "Идентификатор строки",
+    from_user_id INT UNSIGNED NOT NULL,
+    to_user_id INT UNSIGNED NOT NULL,
+    body TEXT NOT NULL COMMENT "Текст сообщения",
+    status_id INT UNSIGNED NOT NULL,
+    created_at DATETIME DEFAULT NOW() COMMENT "Время создания строки",
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT "Время обновления строки" ,
+    is_important BOOLEAN,
+    media_id INT UNSIGNED
+);
+
+ALTER TABLE messages ADD CONSTRAINT fk_message_users_1 FOREIGN KEY (from_user_id) REFERENCES users (id);
+ALTER TABLE messages ADD CONSTRAINT fk_message_users_2 FOREIGN KEY (to_user_id) REFERENCES users (id);
+ALTER TABLE messages ADD CONSTRAINT fk_message_status FOREIGN KEY (status_id) REFERENCES message_statues (id);
+ALTER TABLE messages ADD CONSTRAINT fk_media_id FOREIGN KEY (status_id) REFERENCES media_types (id);
+
+-- Таблица с названиями существующих групп vk----------------------------------------------------------------------------
+CREATE TABLE communities (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL UNIQUE,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT "Время создания строки",  
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT "Время обновления строки"
+);  
+
+-- Таблица с пользователями, вступившими в группу и внешние ключи для связи с таблицами users и communities----------------
+CREATE TABLE communities_users (
+  user_id INT UNSIGNED NOT NULL,
+  community_id INT UNSIGNED NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT "Время создания строки",  
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT "Время обновления строки",
+  PRIMARY KEY (user_id, community_id)
+);  
+
+ALTER TABLE communities_users ADD CONSTRAINT fk_communities_user FOREIGN KEY (user_id) REFERENCES users (id);
+ALTER TABLE communities_users ADD CONSTRAINT fk_community_id FOREIGN KEY (community_id) REFERENCES communities (id);
+
+-- Таблица с пользователями, пересылаемыми медиа и внешние ключи для связи с таблицами users и media_types----------------
+
+CREATE TABLE media (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL COMMENT "Идентификатор юзера, который загрузил файл", 
+  media_type_id INT UNSIGNED NOT NULL COMMENT "Тип документа",
+  filename VARCHAR(255)  NOT NULL UNIQUE COMMENT "Название документа",
+  size INT NOT NULL COMMENT "Размер документа",
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT "Время создания строки",  
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT "Время обновления строки"
+) COMMENT "Медиафайлы";
+
+ALTER TABLE media ADD CONSTRAINT fk_media_type FOREIGN KEY (media_type_id) REFERENCES media_types (id);
+ALTER TABLE media ADD CONSTRAINT fk_media_user FOREIGN KEY (user_id) REFERENCES users (id);
+
+-- Наполнение перечисленных таблиц данными
+
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Christ', 'Johns', 'hubert53@example.org', '9055569301', '2006-11-19');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Emil', 'Walker', 'ricky99@example.org', '9055569302', '1976-04-20');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Annabelle', 'Stamm', 'ihowell@example.net', '9055569303', '1990-04-10');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Rodrigo', 'Mertz', 'rey05@example.org', '9055569304', '2013-08-09');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('May', 'Funk', 'ssimonis@example.org', '9055569305', '1998-10-03');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Bethel', 'Dietrich', 'willis.bergnaum@example.org', '9055569306', '1986-02-02');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Seamus', 'Beer', 'lilliana.bartell@example.com', '9055569307', '1987-04-28');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Anabelle', 'McLaughlin', 'purdy.lonzo@example.net', '9055569308', '2018-08-17');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Georgianna', 'Beahan', 'diamond.schultz@example.net', '9055569309', '1982-12-12');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Abraham', 'Lakin', 'alba00@example.com', '9055569310', '2018-11-26');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Leland', 'Hickle', 'cameron40@example.com', '9055569311', '1994-03-02');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Irwin', 'Dibbert', 'wisozk.dusty@example.net', '9055569312', '1974-07-17');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Willard', 'Legros', 'hschuppe@example.com', '9055569313', '1998-04-30');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Melody', 'O\'Hara', 'boyd.pfeffer@example.com', '9055569314', '1978-01-06');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Raegan', 'Raynor', 'waelchi.magdalena@example.com', '9055569315', '1998-08-17');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Brandy', 'Jones', 'o\'connell.jeffrey@example.net', '9055569316', '2008-06-07');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Tyler', 'Wisoky', 'purdy.walter@example.net', '9055569317', '1983-09-18');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Norval', 'Kohler', 'kenyon76@example.com', '9055569318', '2019-02-28');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Liza', 'Kilback', 'delia.morar@example.net', '9055569319', '2005-05-19');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Lexi', 'Cartwright', 'dluettgen@example.net', '9055569320', '2016-02-03');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Tamara', 'Johnson', 'bosco.beau@example.com', '9055569321', '2010-04-03');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Pierce', 'Hirthe', 'uullrich@example.com', '9055569322', '2008-08-30');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Antonette', 'Auer', 'maud28@example.org', '9055569323', '1982-09-02');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Watson', 'Kautzer', 'laurel.carroll@example.com', '9055569324', '1990-07-23');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Kiana', 'Terry', 'marlene.o\'hara@example.com', '9055569325', '1983-09-17');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Corrine', 'Bogisich', 'aschaefer@example.org', '9055569326', '2007-09-27');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Olin', 'Auer', 'klocko.lorna@example.net', '9055569327', '2014-07-08');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Reagan', 'Champlin', 'uritchie@example.net', '9055569328', '1977-05-24');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Hulda', 'Bruen', 'gregory97@example.com', '9055569329', '1985-10-31');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Carson', 'Olson', 'ljohns@example.org', '9055569330', '1973-12-14');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Dorothy', 'Hammes', 'heidenreich.reed@example.net', '9055569331', '1983-01-22');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Stanton', 'Kutch', 'meggie.mueller@example.org', '9055569332', '1998-04-04');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Abbey', 'Harber', 'weber.reagan@example.net', '9055569333', '2012-09-30');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Kaycee', 'Howe', 'dawson.ernser@example.com', '9055569334', '1971-05-08');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Julie', 'Reichert', 'rondricka@example.org', '9055569335', '1983-10-03');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Peyton', 'Crist', 'qkris@example.net', '9055569336', '1975-06-07');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Sarai', 'Fay', 'roger14@example.org', '9055569337', '1976-12-13');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Rick', 'Berge', 'tre70@example.com', '9055569338', '2006-08-04');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Brain', 'VonRueden', 'ekunze@example.com', '9055569339', '1987-09-28');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Helmer', 'Bashirian', 'trever.mclaughlin@example.com', '9055569340', '1994-03-10');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Carmen', 'Larkin', 'lockman.fabian@example.net', '9055569341', '2001-09-12');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Waylon', 'Klocko', 'klocko.brielle@example.com', '9055569342', '2017-05-09');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Myrtis', 'Stamm', 'liliane93@example.com', '9055569343', '1999-10-06');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Teresa', 'Harber', 'anahi.legros@example.org', '9055569344', '2002-01-18');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Lavina', 'King', 'ratke.ashleigh@example.net', '9055569345', '1972-11-28');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Bret', 'Orn', 'simonis.madelyn@example.org', '9055569346', '2002-05-25');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Orlando', 'Dooley', 'gislason.elaina@example.org', '9055569347', '1974-01-04');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Stephanie', 'Lowe', 'ronaldo.keeling@example.com', '9055569348', '1990-08-27');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Raven', 'Wiza', 'adach@example.org', '9055569349', '1979-12-25');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Madeline', 'Padberg', 'magdalena.towne@example.net', '9055569350', '2005-05-12');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Kris', 'O\'Connell', 'graciela.bergstrom@example.net', '9055569351', '1992-10-22');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Arne', 'Hessel', 'jammie.schulist@example.net', '9055569352', '2016-01-16');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Demarcus', 'Lueilwitz', 'mwindler@example.com', '9055569353', '1995-12-09');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Marguerite', 'Schmitt', 'jerde.michelle@example.com', '9055569354', '2004-08-22');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Jess', 'Kihn', 'ulowe@example.org', '9055569355', '1993-09-12');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Herbert', 'Haley', 'zmorar@example.org', '9055569356', '1995-07-15');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Kari', 'Klocko', 'hane.ettie@example.org', '9055569357', '1984-01-28');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Nikita', 'Lowe', 'mitchell.mallie@example.org', '9055569358', '1970-11-04');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Francesco', 'Wiza', 'catherine87@example.com', '9055569359', '1996-12-14');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Arianna', 'Vandervort', 'mbatz@example.com', '9055569360', '1978-12-19');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Vanessa', 'Quitzon', 'hkertzmann@example.org', '9055569361', '1996-06-09');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Zena', 'Koelpin', 'ola95@example.com', '9055569362', '2001-03-10');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Guadalupe', 'Kessler', 'monique23@example.org', '9055569363', '2013-08-21');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Eliza', 'Botsford', 'mckenzie.viola@example.org', '9055569364', '1994-10-30');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Edyth', 'Conroy', 'stroman.kenna@example.com', '9055569365', '1998-07-01');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Alva', 'Reichel', 'dibbert.dorothy@example.com', '9055569366', '1971-05-11');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Lionel', 'O\'Kon', 'oberbrunner.corbin@example.org', '9055569367', '2000-02-02');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Abbie', 'Bashirian', 'pjones@example.net', '9055569368', '2019-09-17');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Blake', 'Lubowitz', 'adeline.gleichner@example.net', '9055569369', '2008-04-27');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Constance', 'Hilpert', 'kenyatta.cartwright@example.com', '9055569370', '2002-10-03');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Kamille', 'Beahan', 'heber96@example.net', '9055569371', '2003-10-14');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Halie', 'Mraz', 'aric.beier@example.net', '9055569372', '1990-07-18');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Arlo', 'Fisher', 'margarita16@example.org', '9055569373', '1990-12-18 ');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Shanelle', 'Kirlin', 'fo\'hara@example.com', '9055569374', '2009-09-09');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Alyce', 'Price', 'seichmann@example.com', '9055569375', '2008-01-29');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Dillon', 'Tromp', 'lowe.everette@example.com', '9055569376', '2013-04-19');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Ozella', 'Roob', 'mauricio.mcdermott@example.net', '9055569377', '1978-06-24');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Charity', 'Hintz', 'green.alvah@example.org', '9055569378', '2011-03-12');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Mayra', 'Hettinger', 'maximillia48@example.com', '9055569379', '1984-11-21');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Shaina', 'O\'Kon', 'nolan.hudson@example.com', '9055569380', '2011-12-18');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Leilani', 'Dicki', 'edwardo.mcclure@example.net', '9055569381', '2003-06-23');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Yolanda', 'Zboncak', 'judson.tillman@example.com', '9055569382', '2017-06-19');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Amani', 'Sporer', 'evans.considine@example.com', '9055569383', '1972-06-04');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Chelsey', 'Dickens', 'lucienne.witting@example.net', '9055569384', '1999-08-25');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Alden', 'Windler', 'ethan93@example.org', '9055569385', '1977-06-16');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Lowell', 'Mitchell', 'chessel@example.net', '9055569386', '1987-07-06');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Kendall', 'Wiza', 'friesen.magdalen@example.net', '9055569387', '2009-10-11');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Evangeline', 'Welch', 'nina.connelly@example.com', '9055569388', '1978-09-11');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Mariela', 'McClure', 'agustina.bogan@example.org', '9055569389', '1993-08-04');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Estel', 'Howell', 'lilliana76@example.com', '9055569390', '1996-12-22');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Margarett', 'Kub', 'frederik26@example.net', '9055569391', '2013-07-13');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Maximilian', 'Sawayn', 'lucile.batz@example.net', '9055569392', '1980-08-26');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Natasha', 'Nikolaus', 'delores.kuhic@example.com', '9055569393', '1970-03-16');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Abraham', 'Lakin', 'wlabadie@example.com', '9055569394', '1985-03-14');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Larissa', 'Haag', 'lebsack.joel@example.net', '9055569395', '2004-09-24');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Sidney', 'Ruecker', 'ziemann.zelma@example.org', '9055569396', '1971-06-27');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Lavon', 'Skiles', 'lawson22@example.org', '9055569397', '2019-01-26');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Kenny', 'Rolfson', 'claude.cruickshank@example.net', '9055569398', '1972-07-11');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Taryn', 'Dickinson', 'hkuphal@example.net', '9055569399', '1989-09-15');
+INSERT INTO `users` (`first_name`, `last_name`, `email`, `phone`, `data_of_birth`) VALUES ('Dayana', 'Corkery', 'hbecker@example.com', '9055569400', '2021-01-21');
+COMMIT;
+
+INSERT INTO `friendship_statuses` (`name`) VALUES ('друг');
+INSERT INTO `friendship_statuses` (`name`) VALUES ('коллега');
+INSERT INTO `friendship_statuses` (`name`) VALUES ('семья');
+COMMIT;
+
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (14, 100, 1, '2014-03-31 16:37:57', '2008-08-16 05:01:11');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (15, 58, 1, '1990-07-04 19:26:49', '2005-10-23 23:15:49');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (18, 41, 1, '1992-07-07 05:09:17', '2018-04-23 10:14:35');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (18, 79, 1, '2000-07-26 07:05:02', '2003-01-01 11:41:12');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (20, 80, 1, '1991-04-08 20:23:42', '1978-05-08 06:18:08');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (20, 93, 1, '1996-05-12 20:21:46', '1986-12-16 18:37:53');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (21, 1, 1, '1982-06-25 15:36:29', '2002-08-17 17:43:44');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (21, 63, 1, '1985-08-19 08:04:43', '2002-10-05 10:54:08');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (21, 96, 1, '1991-07-03 02:49:12', '2014-03-17 15:26:31');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (22, 54, 1, '2013-02-20 20:47:03', '1987-03-09 08:31:52');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (23, 9, 1, '1980-04-01 17:28:42', '1990-08-16 14:44:34');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (27, 18, 1, '1993-03-13 22:30:14', '2001-01-24 01:25:13');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (27, 22, 2, '1972-03-26 03:07:16', '2017-11-27 07:55:23');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (28, 24, 2, '1970-12-11 01:20:02', '2021-04-20 08:15:10');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (29, 60, 2, '1987-07-12 18:06:15', '1984-08-21 04:52:20');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (31, 88, 2, '1990-01-24 06:50:33', '1990-06-23 01:33:00');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (33, 58, 2, '1998-10-15 11:32:53', '1983-02-05 07:19:06');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (33, 60, 2, '2013-01-18 11:12:47', '2001-05-29 03:41:20');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (34, 40, 2, '1993-12-12 04:08:30', '2016-08-31 21:17:06');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (34, 54, 2, '1978-09-21 01:20:35', '1992-11-03 10:08:47');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (40, 21, 2, '1989-09-10 12:10:55', '2009-10-08 08:05:11');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (41, 73, 2, '1996-08-09 11:18:55', '1976-05-07 21:24:26');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (42, 42, 2, '2011-12-14 01:34:48', '2011-05-04 13:09:48');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (42, 43, 3, '2002-12-29 03:02:06', '2015-07-14 00:53:49');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (42, 46, 1, '1975-06-11 09:43:47', '2014-03-02 11:02:48');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (43, 56, 3, '1985-01-04 01:45:19', '1976-09-07 20:36:12');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (43, 94, 3, '1973-02-21 18:50:03', '2012-03-13 15:33:59');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (43, 98, 3, '2014-07-25 10:25:25', '2003-11-14 14:21:36');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (44, 68, 3, '1980-10-26 03:10:10', '1988-08-06 11:23:38');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (45, 28, 3, '2007-11-20 07:09:11', '2010-02-18 15:50:46');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (45, 53, 3, '1978-11-25 23:38:22', '1974-10-13 23:53:09');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (45, 88, 3, '1987-08-06 04:26:28', '1994-07-13 16:26:35');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (47, 56, 3, '1981-10-29 17:51:57', '2008-01-27 06:16:22');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (52, 18, 3, '1973-12-07 18:19:48', '1983-12-26 17:25:04');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (52, 48, 3, '1970-07-07 13:45:17', '1991-02-18 05:52:50');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (52, 52, 3, '1997-11-27 20:58:23', '2012-10-11 05:33:05');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (52, 85, 3, '1981-05-16 06:38:55', '1983-11-23 23:58:43');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (54, 45, 3, '1974-10-08 10:58:06', '2013-03-15 11:32:58');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (55, 66, 3, '1992-10-01 06:22:43', '2006-08-07 05:23:12');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (59, 15, 3, '1985-05-19 22:27:52', '1974-10-01 17:05:26');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (59, 38, 3, '1991-12-03 12:49:45', '2018-02-22 15:44:35');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (59, 71, 3, '1993-08-07 07:01:42', '1994-06-06 06:23:51');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (59, 80, 3, '1993-02-17 00:28:19', '2006-12-15 04:20:25');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (60, 74, 3, '1993-12-13 20:19:49', '1999-11-03 22:07:30');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (61, 70, 3, '2005-01-17 02:27:05', '1994-07-12 10:50:43');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (61, 77, 1, '1987-05-13 11:37:28', '1984-10-27 19:55:22');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (62, 33, 2, '1997-11-22 18:20:53', '2011-05-25 01:09:22');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (62, 95, 3, '1973-08-05 02:30:10', '1971-01-21 23:16:26');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (62, 98, 1, '1985-07-20 23:01:06', '1975-09-06 17:20:38');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (63, 23, 3, '2012-01-29 17:36:33', '1992-03-15 12:48:10');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (66, 11, 3, '2009-04-15 23:12:41', '1993-09-01 08:31:04');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (67, 34, 3, '2000-04-25 21:34:27', '2010-02-19 01:37:32');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (67, 41, 3, '1990-06-02 07:51:29', '1980-01-27 08:23:40');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (69, 8, 3, '2008-03-22 19:09:45', '2004-03-21 14:45:44');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (72, 29, 3, '1991-09-21 00:59:14', '1971-10-11 18:08:57');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (73, 67, 3, '1990-12-09 21:27:38', '2017-02-02 23:52:43');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (73, 77, 3, '2000-08-18 04:59:27', '2018-06-28 21:43:51');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (73, 86, 3, '1983-08-27 23:49:15', '1985-11-09 17:29:51');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (74, 93, 3, '1972-08-27 06:44:04', '2002-03-01 08:29:30');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (75, 82, 3, '2004-02-01 08:19:19', '2002-10-12 15:29:29');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (76, 80, 3, '1974-08-09 02:20:06', '1998-08-04 01:19:11');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (77, 21, 3, '2012-10-20 07:44:06', '1994-12-26 06:31:28');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (78, 94, 3, '2009-01-18 16:06:18', '2016-02-12 14:03:30');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (79, 22, 3, '2005-01-28 20:00:14', '2010-07-10 00:31:42');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (80, 13, 3, '1992-08-28 21:16:21', '1982-09-07 20:32:06');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (81, 28, 3, '2021-04-01 14:58:24', '1994-01-05 00:28:48');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (83, 17, 3, '1999-07-29 23:43:00', '1986-12-29 12:51:36');
+INSERT INTO `friendship` (`user_id`, `friend_id`, `friendship_status_id`, `requested_at`, `confirmed_at`) VALUES (85, 75, 3, '2019-03-21 09:54:16', '1973-12-01 14:26:55');
+COMMIT;
+
+INSERT INTO `message_statues` (`name`) VALUES ('Доставлено');
+INSERT INTO `message_statues` (`name`) VALUES ('Не доставлено');
+INSERT INTO `message_statues` (`name`) VALUES ('Прочитано');
+INSERT INTO `message_statues` (`name`) VALUES ('Отозвано');
+COMMIT;
+
+INSERT INTO `media_types` (`name`) VALUES ('photo');
+INSERT INTO `media_types` (`name`) VALUES ('audio');
+INSERT INTO `media_types` (`name`) VALUES ('gif');
+INSERT INTO `media_types` (`name`) VALUES ('video');
+INSERT INTO `media_types` (`name`) VALUES ('file');
+COMMIT;
+
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (67, 13, 'Enim iste aut est corporis quasi sit sunt. Iste esse et repudiandae illum illo quas. Quas illo repellat architecto quo sapiente velit. Minima et expedita dolore dolore consequatur.', 1, 0, 1);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (69, 46, 'Est inventore ipsa voluptates. Adipisci deleniti sequi sit nobis. Natus rem dicta maxime omnis. Rem cumque magnam est quo. Voluptatem numquam sit porro distinctio cupiditate in quia.', 2, 1, 2);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (77, 94, 'Dolorem non aliquam alias. Commodi corrupti non libero. Ea soluta tempore sequi omnis et vel. Autem ut explicabo nihil nemo odio ut perspiciatis laudantium.', 3,  1, 3);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (28, 43, 'Magnam sed nostrum id natus. Consequatur voluptatibus a cum assumenda. Aut molestias dolorem qui odio similique.', 4,  1, 4);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (99, 74, 'Non non sapiente animi cupiditate officia molestias. Est fugit et error quam rerum qui voluptas enim.', 1,  1, 5);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (44, 3, 'Rerum voluptate et sit. Sit ut corrupti repudiandae eos est nostrum. Numquam quod voluptatibus consequatur voluptatum nesciunt id.', 2,  1, 1);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (7, 62, 'Harum sed qui maxime reprehenderit. Debitis et dolore libero est. Quidem aut ut accusamus ab voluptatem voluptate ratione. Autem sunt voluptas et blanditiis.', 3, 0, 2);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (11, 53, 'Consequatur sint eum et maiores amet voluptatem dicta. Suscipit neque nihil exercitationem sed voluptatibus soluta rerum aut. Cumque quam aut eum sit dolorum explicabo.', 4,  0, 3);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (99, 83, 'Reiciendis ipsam repellat vel architecto. Voluptatum sed est voluptas est.', 1,  1, 4);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (74, 76, 'Minima nobis quae aut voluptatem est ea. Alias aut dolor tenetur. Atque qui voluptates fuga neque quasi provident.', 2, 0, 5);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (19, 24, 'Molestias et eos ipsum qui. Tenetur sed vel et maiores delectus aut. Asperiores sit quisquam ab totam ipsum. Quas eveniet dolor omnis assumenda libero.', 3, 1, 1);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (100, 25, 'Et voluptas non quod. Hic deleniti dolorem voluptatum ut nihil consectetur enim. Hic cum accusamus veritatis dignissimos eum quo.', 4,  1, 2);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (61, 5, 'Sit numquam vero praesentium quo adipisci eveniet. Qui minima omnis dolorum quisquam. Nihil et eveniet exercitationem eum omnis debitis repellendus.', 1,  0, 3);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (79, 7, 'Quidem nulla eos voluptatem quia quis. Sed impedit sint quisquam vel ad iure maxime. Odio architecto quia in earum quis minus eveniet.', 2,  0, 4);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (19, 82, 'Debitis similique dolore amet omnis earum non. Culpa et sunt quaerat. Autem sint nostrum eveniet quam.', 3,  1, 5);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (68, 86, 'Quis quidem amet a fuga rerum distinctio vel eum. Id quibusdam voluptates vel ea id est sit cum. Blanditiis eum totam soluta.', 4,  0, 1);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (94, 36, 'Iure deleniti amet laudantium aut quos perspiciatis. Ratione consectetur molestiae harum vel. Autem perspiciatis explicabo doloremque cupiditate similique.', 1, 1, 2);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (31, 70, 'Sapiente voluptatem soluta mollitia. Sapiente iusto perferendis impedit saepe perferendis architecto qui praesentium. Fugit vero quas iusto. Consequatur eligendi voluptatum nostrum eum.', 2,  0, 3);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (30, 58, 'Minus rem adipisci dolorem sint cupiditate sunt. Ducimus dolorem tempore sit pariatur qui. Magni dolores doloremque veritatis.', 3,  1, 4);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (13, 29, 'Ratione velit non qui et quos error. Molestiae quo illo aperiam temporibus vel ab. Illum ea ab qui.', 4,  1, 5);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (31, 56, 'Dolorem in aut veritatis veritatis necessitatibus quae. Distinctio quis et dolorum et. Eius quod tenetur blanditiis aut voluptate aut est. Quas et ad quod similique qui voluptatem.', 1,  1, 1);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (32, 38, 'Quia quam ipsa dicta est aliquid est. Inventore dolor molestiae enim delectus. Repellat voluptas ullam ut enim voluptas nulla. Officiis unde molestias a rem possimus odit qui.', 2,  0, 2);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (18, 42, 'Velit esse harum totam totam ratione a labore. Distinctio quia nisi ipsam quaerat et possimus. Quisquam corporis sapiente cumque quae. Deleniti voluptatum commodi ut architecto facere dolorum et architecto.', 3,  0, 3);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (91, 16, 'Rerum consequatur facilis facere saepe non eius. Temporibus eos aliquam totam aspernatur sapiente. Qui sint corporis neque dolore.', 4,  0, 4);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (25, 64, 'Iure blanditiis ipsam facere recusandae. Sit ad eum porro. Quo eveniet libero est laudantium consequatur. Voluptate ipsum quam distinctio qui excepturi est.', 1,  1, 5);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (92, 43, 'Nulla nisi aut qui ut. Sequi iusto iste mollitia quasi perspiciatis. Earum eum veniam velit voluptatem amet. Non voluptatem ea neque nostrum ea qui.', 2,  1, 1);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (88, 91, 'Vel ipsa quidem esse consequatur pariatur perferendis officiis. Iste eum et fugit qui consectetur nemo labore. Molestiae explicabo quia dolore quis. Perspiciatis iure quia eligendi facilis accusamus. Sequi facilis itaque voluptas eaque consequatur dolores quo.', 3,  1, 2);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (67, 49, 'Repudiandae blanditiis qui debitis et quas voluptas in. Magni doloribus quis et placeat eveniet qui. Labore ipsa in ipsa dolor voluptatibus ipsam.', 4,  0, 3);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (96, 46, 'Tenetur vero sed reiciendis et repellat. Blanditiis ut facilis veniam. Odit aut eveniet voluptatem ut corrupti assumenda. Recusandae vitae doloribus architecto architecto incidunt.', 1,  0, 4);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (55, 15, 'Deserunt ad illum qui ut et ut molestiae. Eos minus ipsa quod adipisci. In voluptatem ut vel aut et.', 2,  0, 5);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (27, 22, 'At expedita distinctio illum minima quasi. Fugit est vero perferendis eveniet perspiciatis. Accusantium et sint eius. Occaecati libero perferendis consequatur.', 3,  1, 1);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (100, 21, 'Sit sed quia quae et delectus. Nemo rerum impedit sit. Expedita distinctio eius totam. Voluptates est ratione dicta officia sunt occaecati numquam et.', 4,  1, 2);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (57, 31, 'Eaque in repudiandae error cupiditate architecto enim. Dolor quas autem nobis dicta et est voluptatem quidem. Rem est consequatur quia velit amet. Quia voluptatum neque amet autem necessitatibus mollitia.', 1,  1, 3);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (91, 87, 'Sequi enim vel impedit qui debitis magni eveniet id. Dolores doloribus aliquam aut aut id. Libero omnis dignissimos accusamus est rerum nihil.', 2,  0, 4);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (89, 3, 'Omnis explicabo vero explicabo laudantium molestiae quibusdam. Doloremque libero placeat omnis in quo. Unde modi veniam sint veniam aspernatur maiores illo.', 3,  1, 5);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (15, 20, 'Itaque qui eaque atque. Dignissimos qui dignissimos accusantium ea velit excepturi repellat.', 4,  1, 1);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (59, 46, 'Blanditiis et placeat voluptatem aut cum praesentium rerum. Sed repellat molestiae eos est molestias laboriosam dolorem. Ut quo hic quidem ipsum aut id accusantium inventore.', 1, 0, 2);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (58, 76, 'Ullam a ex repudiandae dolore officiis maiores deserunt. Quidem recusandae consectetur non sed. Eos suscipit voluptate repellat.', 2,  0, 3);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (88, 48, 'Illo est quaerat quidem nulla aspernatur minus rem beatae. Rerum aut voluptas facere deserunt. Quod inventore eum quisquam nobis voluptatem. Fuga asperiores nobis enim magnam harum aperiam.', 3,  0, 4);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (92, 12, 'Magnam fugiat assumenda magnam qui temporibus aut. Omnis nihil accusantium quia ad voluptatem. Qui culpa tenetur inventore magni ab.', 4,  0, 5);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (12, 83, 'Perferendis ab iusto voluptas quidem alias qui. Sed illo ut enim est odio et illo commodi. Vel odit sit praesentium autem enim omnis et. Cupiditate ipsam sed et omnis sed voluptatem occaecati.', 1,  1, 1);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (55, 100, 'Expedita quasi tempora et incidunt. Laudantium consequatur aliquid repudiandae repellendus et et sed. Quidem doloribus commodi ipsam cum rerum sit et. Distinctio sint accusantium accusamus velit aut non nesciunt.', 2,  0, 2);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (74, 22, 'At vel culpa praesentium rem vitae incidunt delectus. Vel et qui non natus eos ipsum. Laudantium quas quasi voluptatem.', 3,  1, 3);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (48, 69, 'Perferendis harum recusandae a unde saepe repellendus eum. Consequatur quia id nam voluptatem quos nam vel. Vero officiis dignissimos quia.', 4,  0, 4);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (67, 2, 'Exercitationem animi saepe dolores illum. Et quam sunt soluta quo. Necessitatibus est vel aut fugit.', 1,  1, 5);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (84, 94, 'Enim in sit et enim quas labore est. Natus consequatur aut excepturi similique. Sunt accusamus at fugit perspiciatis voluptas facere quaerat.', 2, 1, 1);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (23, 84, 'Non nobis eum repellat alias aliquid fuga quia. Adipisci occaecati ut non necessitatibus labore. Ratione tenetur at error ut adipisci dicta iusto. Assumenda laboriosam voluptatem dolorem voluptatem assumenda aut molestias.', 3, 1, 2);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (14, 80, 'Fuga fuga atque cumque tenetur cum quidem rerum. Quibusdam eaque ducimus itaque nobis beatae sed aut. Ratione expedita voluptatem quia ab non eum. Rerum vitae enim recusandae.', 4,  1, 3);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (14, 4, 'Neque ab aliquam repellat. Dolorem voluptatem blanditiis deleniti. Voluptatem molestiae blanditiis repudiandae cupiditate sit est.', 1, 0, 4);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (66, 3, 'Ut et a dolores corrupti. Omnis hic pariatur delectus doloremque illum. Quidem iusto cum soluta nulla id sit deleniti.', 2,  1, 5);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (7, 81, 'Nam voluptatibus ut accusamus. Architecto aliquam totam cum dolorum molestiae. Voluptas et eligendi voluptatem placeat aperiam ducimus quidem.', 3,  0, 1);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (23, 65, 'Voluptatem sunt fugit voluptatem eius exercitationem beatae. Quia voluptas officia ut nisi. Sit qui occaecati quos dolores voluptatum ut voluptatibus. Quis cumque aliquam commodi.', 4,  1, 2);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (26, 80, 'Quia aut a et quo qui voluptates. Quis rem consequatur dolor quas dolor dicta labore quia. A voluptas voluptate ut voluptatem. Quisquam nulla quidem libero non.', 1,  0, 3);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (41, 13, 'Temporibus autem aut voluptates modi aut. Ut molestias deleniti nobis occaecati. Autem est dolorum dolor ad.', 2,  0, 4);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (28, 32, 'Repudiandae velit nesciunt natus totam. Repellat impedit harum voluptate. Aut numquam velit dolores.', 3,  1, 5);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (25, 40, 'Quia debitis laboriosam repudiandae aspernatur. Repudiandae quod et dolores voluptate voluptatum. Quia quam impedit itaque vel consectetur. Rerum autem nesciunt amet.', 4,  0, 1);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (15, 80, 'Et quasi quia doloremque autem dolorem sunt. Aut impedit eum nostrum iure ut. Architecto eum qui voluptatem culpa. Repellendus error odit doloribus sequi.', 1,  0, 2);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (39, 88, 'Deleniti fugit ipsa sapiente aut at. Eaque in aut est fugiat dolor voluptatum aspernatur voluptatum. Odio vero quidem ab distinctio officia pariatur. Et iure quia repudiandae maiores fugiat accusantium reiciendis vel.', 2,  1, 3);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (1, 86, 'Accusantium ut perferendis molestiae eius dolore vero dolorem. Doloremque quas non ut aut.', 3,  0, 4);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (56, 67, 'Ut est quo aspernatur ut. Et quas facere ad fuga repellendus voluptate adipisci. Velit unde ut quas architecto fugit deserunt aut accusantium. Ut consequatur recusandae dolores quisquam.', 4,  0, 5);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (87, 39, 'Porro odio id occaecati eum inventore. Ratione quam consequatur earum impedit enim voluptatem. Dicta rerum qui sit tempore. Nesciunt quibusdam fugiat harum rem aspernatur et ex.', 1,  0, 1);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (60, 10, 'Et ad laboriosam autem. Voluptates asperiores sit officiis minima. Nostrum beatae corrupti quo dolorum.', 2,  1, 2);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (22, 74, 'Aut architecto explicabo recusandae itaque accusantium odio. Cumque sit neque dolore. Quisquam reiciendis amet sed nesciunt voluptates voluptatibus. Consequatur accusamus tempora delectus.', 3,  1, 3);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (89, 36, 'A quas sunt saepe soluta vero magni. Aut dolores eum est maxime eum. Sint sint tempora a quos consequatur modi repellendus.', 4,  0, 4);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (78, 54, 'Quod deserunt quasi officiis quia. Est nemo ipsum dolorem. Unde reprehenderit est vel aliquam et vero sit.', 1,  0, 5);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (39, 84, 'Voluptatem accusantium neque blanditiis. Voluptate inventore est ut autem. Labore voluptatem qui minus autem ea. Quasi ipsum dolores dicta ex placeat.', 2,  1, 1);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (35, 61, 'Eaque autem vitae et. Consectetur nostrum totam est velit labore necessitatibus incidunt.', 3,  0, 2);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (48, 60, 'Quis harum a libero esse. Ea doloribus quos aut et est voluptates aliquid. Minus ipsum rerum ab labore iusto et modi.', 4,  1, 3);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (41, 88, 'Voluptatibus quia et fuga voluptatum impedit iste quia libero. Ea necessitatibus quis aut voluptate. Cum corporis quos voluptatibus ea.', 1,  0, 4);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (73, 69, 'Rem eaque eligendi corporis voluptatibus sit. Pariatur dolor labore sed est dicta esse dolorem non.', 2,  1, 5);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (20, 98, 'Maxime consequatur quia vitae ratione quae. Perferendis aperiam iusto ut fugit ab excepturi iusto. Voluptatem ipsam nesciunt aut qui.', 3,  1, 1);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (8, 34, 'Laudantium dignissimos pariatur at ratione maiores. Est qui sapiente vitae quia architecto non dolores nemo. Voluptatum maxime autem aut doloremque amet reprehenderit excepturi.', 4,  1, 2);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (77, 46, 'Impedit nihil ut dignissimos dolores. Esse fugiat consequatur voluptas temporibus possimus praesentium. Molestias debitis et corrupti sunt veritatis est vel aliquid. Quo quo eligendi dolor aliquid est.', 1,  1, 3);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (21, 77, 'Soluta rerum ut molestiae occaecati molestias a ut. Quis hic illo non itaque maxime quasi possimus. Inventore veritatis natus id. Blanditiis ipsam fugit quasi qui iste saepe velit.', 2,  1, 4);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (32, 77, 'Quia asperiores odio esse iste. Ut ad ut repudiandae sed. Aspernatur ad autem dolor voluptatum. Nihil et perferendis itaque delectus aut quaerat.', 3,  0, 5);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (44, 18, 'Veritatis ea at qui sit praesentium et. Sed deleniti corporis eligendi est. Reprehenderit libero et aliquam voluptate molestiae. Soluta officia impedit a porro occaecati minima ipsum adipisci. Et illum veniam quia reiciendis.', 4, 1, 1);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (16, 4, 'Soluta et aut porro expedita sunt quia vero. Dolores laudantium sapiente qui et aut voluptatem. Harum perferendis voluptatum eaque.', 1,  1, 2);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (27, 38, 'Autem expedita iusto facere et quibusdam. Nihil animi quam similique. Reiciendis error a eveniet hic iste molestiae eum aliquam.', 2,  1, 3);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (78, 16, 'Rem ab dolores quibusdam enim dolores minima. In nobis et quia et ratione illum quasi velit. Ut illum voluptas sequi voluptas.', 3,  1, 4);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (74, 55, 'Cupiditate debitis inventore voluptatum rerum id voluptatibus a. Odit optio enim enim aliquam quia fugiat laboriosam.', 4,  0, 5);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (70, 12, 'Dignissimos voluptas illum ut delectus doloribus eum qui. Repellendus voluptatibus saepe omnis iste perspiciatis fugit. Explicabo laudantium sed facilis voluptas officia voluptates qui.', 1,  0, 1);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (38, 4, 'Dolore aut aliquam est sint alias totam. Consectetur non quos eos. Ducimus natus consequatur nobis est cum debitis. Blanditiis quos aspernatur ut et repudiandae fugit numquam in. Magnam eos est eligendi consequatur occaecati et.', 2,  1, 2);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (73, 86, 'Quia consequatur quisquam animi temporibus. Repellat et et atque tenetur aut porro quisquam.', 3,  0, 3);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (63, 13, 'Tenetur consequatur qui nemo labore. Occaecati reiciendis magni hic est aut. Fuga est maxime quaerat labore animi. Est et aut saepe dolorem.', 4,  0, 4);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (74, 36, 'Porro possimus nostrum quasi nisi nesciunt et. Harum facilis culpa dolor labore exercitationem omnis molestiae. Modi vitae vel doloribus quibusdam aliquam aperiam atque.', 1,  0, 5);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (82, 93, 'Excepturi facere itaque aut tempore harum. Praesentium non sed maiores corporis nobis voluptatem. Dolorem est provident beatae corporis. Pariatur sed minus soluta reiciendis excepturi tempora velit quo.', 2,  1, 1);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (33, 89, 'Aperiam sint architecto voluptas nulla possimus sequi quia sed. Consequatur dolorem molestiae et et dicta officiis. Magni facere perferendis id corrupti dolorem.', 3,  0, 2);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (27, 10, 'Placeat aut et tempore id voluptatem tempore voluptatibus. Quia ut quo voluptatibus hic. Non qui quos nihil corporis laudantium commodi tempora. Fuga odit velit autem alias vel fuga.', 4,  0, 3);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (35, 48, 'Ratione ipsa dolorem iure. Velit quis ut cum rerum et. Enim aut quidem exercitationem eveniet.', 1,  0, 4);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (87, 66, 'Pariatur beatae iure assumenda numquam numquam. Ut laboriosam nesciunt delectus consequatur. Quod consequuntur et aperiam qui dolorem.', 2,  0, 5);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (24, 31, 'Qui iure hic et praesentium. Reiciendis recusandae nobis vitae qui.', 3,  0, 1);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (84, 40, 'Ut corrupti reprehenderit quia saepe consequatur. Qui ipsam est commodi omnis culpa rerum. Explicabo eos corporis voluptas iusto facere. Quia doloremque sunt ut qui quibusdam dolorem id voluptatibus.', 4,  1, 2);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (34, 11, 'Assumenda qui vel commodi ea veritatis iste. Consequatur voluptas aut omnis sit aliquid voluptas. Aspernatur necessitatibus eius sit hic a.', 1,  0, 3);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (77, 12, 'Commodi sequi distinctio a dolore quia fugiat quia. Id ipsa distinctio qui quae modi officia. Et commodi eos eveniet eum tempore enim tempore. Sed qui minus possimus laudantium qui.', 2, 0, 4);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (26, 51, 'Sint fugit distinctio doloribus explicabo dolor. Distinctio quo placeat dolor assumenda expedita minima. Voluptas ab qui fugiat aut nobis voluptas adipisci. Tenetur nam voluptas provident et itaque.', 3,  1, 5);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (66, 95, 'Voluptate et vitae et quibusdam aliquam labore. Qui neque impedit id autem modi reprehenderit nihil. Eum tempora voluptas officia blanditiis.', 4,  0, 1);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (62, 3, 'Eum et quo sit veniam itaque. Saepe fugiat veniam provident quae laudantium. Doloribus id enim quae aperiam aut quos aut. Et dolore eum maxime est nam id cupiditate.', 1,  0, 2);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (98, 34, 'Est voluptate beatae sint culpa ea quia impedit. Libero ipsum qui aut sequi pariatur dicta totam. Et eos minima aliquam nihil aspernatur.', 2,  0, 3);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (89, 61, 'Aut nostrum facilis quidem. Repudiandae fugiat et voluptates. Et debitis facilis rerum minus qui natus consequuntur.', 3,  0, 4);
+INSERT INTO `messages` (`from_user_id`, `to_user_id`, `body`, `status_id`, `is_important`, `media_id`) VALUES (47, 62, 'Ipsum consequatur odit veniam distinctio aspernatur quaerat. Placeat repellat voluptate quaerat aut voluptatem corrupti perspiciatis. Quo aut quae sit debitis doloremque beatae. Molestiae consequatur nulla adipisci eveniet rerum nostrum.', 4,  0, 5);
+COMMIT;
+
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (1, 'm', 'Lake Guyview', 'Cyprus');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (2, 'f', 'Rickyview', 'French Southern Territories');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (3, 'm', 'Port Reuben', 'Svalbard & Jan Mayen Islands');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (4, 'f', 'Hellerhaven', 'Burundi');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (5, 'm', 'Beattychester', 'Cambodia');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (6, 'f', 'Kenyonhaven', 'Liechtenstein');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (7, 'm', 'Mariaside', 'Zambia');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (8, 'f', 'South Brookschester', 'Iran');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (9, 'm', 'East Rebeccaburgh', 'Guatemala');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (10, 'f', 'West Elliott', 'Slovakia (Slovak Republic)');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (11, 'm', 'Port Natashahaven', 'Switzerland');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (12, 'f', 'Lake Florinefort', 'Myanmar');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (13, 'm', 'Revabury', 'Brunei Darussalam');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (14, 'f', 'Kaelynberg', 'Iceland');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (15, 'm', 'East Marionton', 'Guam');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (16, 'f', 'Hermistonville', 'Czech Republic');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (17, 'm', 'Yasminbury', 'Tunisia');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (18, 'f', 'New Reeseberg', 'Brunei Darussalam');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (19, 'm', 'Anahitown', 'Aruba');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (20, 'f', 'Baileyborough', 'Morocco');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (21, 'm', 'Heidenreichborough', 'Ethiopia');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (22, 'f', 'Port Torrance', 'Gabon');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (23, 'm', 'Kundeside', 'Northern Mariana Islands');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (24, 'f', 'Herzogberg', 'Malta');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (25, 'm', 'Hilpertport', 'Guernsey');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (26, 'f', 'Kshlerinborough', 'Lithuania');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (27, 'm', 'Erinmouth', 'Turkmenistan');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (28, 'f', 'South Pinkie', 'Colombia');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (29, 'm', 'New Paige', 'Brazil');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (30, 'f', 'Gerholdton', 'Tuvalu');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (31, 'm', 'Daynemouth', 'Iran');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (32, 'f', 'Hermistontown', 'Burundi');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (33, 'm', 'North Genevieve', 'Gibraltar');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (34, 'f', 'Port Kade', 'Nepal');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (35, 'm', 'Lake Erling', 'Uganda');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (36, 'f', 'North Catharineside', 'Sudan');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (37, 'm', 'Paultown', 'Jordan');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (38, 'f', 'New Broderick', 'Antigua and Barbuda');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (39, 'm', 'Lake Mia', 'Indonesia');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (40, 'f', 'Port Hipolito', 'Slovakia (Slovak Republic)');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (41, 'm', 'East Roel', 'Bosnia and Herzegovina');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (42, 'f', 'West Eveline', 'Eritrea');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (43, 'm', 'Port Alexandria', 'Iceland');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (44, 'f', 'South Deontae', 'Togo');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (45, 'm', 'West Waylonville', 'British Indian Ocean Territory (Chagos Archipelago)');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (46, 'f', 'Angusview', 'El Salvador');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (47, 'm', 'East Myrl', 'Panama');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (48, 'f', 'Pagacland', 'Cape Verde');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (49, 'm', 'Oralville', 'Sweden');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (50, 'f', 'Lindchester', 'Ecuador');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (51, 'm', 'Bernhardchester', 'Czech Republic');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (52, 'f', 'West Allen', 'Pitcairn Islands');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (53, 'm', 'Abshireburgh', 'Eritrea');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (54, 'f', 'Lake Elliott', 'Tanzania');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (55, 'm', 'South Urielchester', 'Turks and Caicos Islands');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (56, 'f', 'Lake Raheemborough', 'Kuwait');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (57, 'm', 'Port Terry', 'Cocos (Keeling) Islands');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (58, 'f', 'Beahanshire', 'Slovakia (Slovak Republic)');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (59, 'm', 'West Patsy', 'Macao');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (60, 'f', 'Tesston', 'Botswana');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (61, 'm', 'Arloshire', 'Anguilla');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (62, 'f', 'Markburgh', 'Kiribati');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (63, 'm', 'Hyattbury', 'Macedonia');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (64, 'f', 'Maureenside', 'Eritrea');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (65, 'm', 'Okunevaview', 'Turks and Caicos Islands');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (66, 'f', 'Hayesside', 'Bouvet Island (Bouvetoya)');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (67, 'm', 'New Arlieland', 'Guam');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (68, 'f', 'West Javonfurt', 'Bosnia and Herzegovina');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (69, 'm', 'Lake Ashleystad', 'Australia');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (70, 'f', 'Herminafurt', 'Belize');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (71, 'm', 'Lake Rubenhaven', 'Tokelau');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (72, 'f', 'Lillyborough', 'Eritrea');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (73, 'm', 'Rempelshire', 'Vanuatu');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (74, 'f', 'New Margarette', 'Serbia');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (75, 'm', 'Amyaberg', 'Tuvalu');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (76, 'f', 'Clarissaside', 'Korea');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (77, 'm', 'Lake Declan', 'Seychelles');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (78, 'f', 'New Wilson', 'Taiwan');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (79, 'm', 'East Efrain', 'Palau');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (80, 'f', 'New Lauryntown', 'Andorra');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (81, 'm', 'Charleneborough', 'South Georgia and the South Sandwich Islands');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (82, 'f', 'Port Wilfredofurt', 'Namibia');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (83, 'm', 'Port Bernie', 'Hong Kong');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (84, 'f', 'Robertsberg', 'Macedonia');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (85, 'm', 'Kraigmouth', 'Norfolk Island');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (86, 'f', 'Rathchester', 'Marshall Islands');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (87, 'm', 'Rowemouth', 'Korea');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (88, 'f', 'Lake Bethelmouth', 'Switzerland');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (89, 'm', 'Port Joshmouth', 'Guadeloupe');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (90, 'f', 'New Horace', 'Uganda');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (91, 'm', 'South Adonis', 'Malta');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (92, 'f', 'Maggioview', 'Greenland');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (93, 'm', 'Port Providenci', 'Micronesia');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (94, 'f', 'Toyfort', 'Uruguay');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (95, 'm', 'West Vanberg', 'United States of America');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (96, 'f', 'South Samantafort', 'Aruba');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (97, 'm', 'South Octaviamouth', 'Palestinian Territory');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (98, 'f', 'Lake Estrella', 'Peru');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (99, 'm', 'Port Elna', 'Bahrain');
+INSERT INTO `profiles` (`user_id`, `gender`, `city`, `country`) VALUES (100, 'f', 'East Meredithmouth', 'Greece');
+COMMIT;
+
+INSERT INTO `communities` (`name`) VALUES ('Geekbrains');
+INSERT INTO `communities` (`name`) VALUES ('Radiohead');
+INSERT INTO `communities` (`name`) VALUES ('Elasticheart');
+COMMIT;
+
+INSERT INTO `communities_users` (`user_id`, `community_id`) VALUES (1, 1);
+INSERT INTO `communities_users` (`user_id`, `community_id`) VALUES (2, 2);
+INSERT INTO `communities_users` (`user_id`, `community_id`) VALUES (3, 3);
+INSERT INTO `communities_users` (`user_id`, `community_id`) VALUES (4, 1);
+INSERT INTO `communities_users` (`user_id`, `community_id`) VALUES (5, 2);
+INSERT INTO `communities_users` (`user_id`, `community_id`) VALUES (6, 3);
+INSERT INTO `communities_users` (`user_id`, `community_id`) VALUES (7, 1);
+INSERT INTO `communities_users` (`user_id`, `community_id`) VALUES (8, 2);
+INSERT INTO `communities_users` (`user_id`, `community_id`) VALUES (9, 3);
+INSERT INTO `communities_users` (`user_id`, `community_id`) VALUES (10, 1);
+COMMIT;
+
+INSERT INTO `media` (`user_id`, `media_type_id`, `filename`, `size`) VALUES (50, 1, 'Фото Москва', 1024);
+INSERT INTO `media` (`user_id`,`media_type_id`, `filename`, `size`) VALUES (50, 1, 'Фото Питер', 1024);
+INSERT INTO `media` (`user_id`,`media_type_id`, `filename`, `size`) VALUES (2, 2, 'Моя музыка', 1024);
+INSERT INTO `media` (`user_id`,`media_type_id`, `filename`, `size`) VALUES (33, 4, 'Италия', 1024);
+INSERT INTO `media` (`user_id`,`media_type_id`, `filename`, `size`) VALUES (39, 5, 'Документ', 1024);
+COMMIT;
+
+#2. Добавить необходимую таблицу/таблицы для того, чтобы можно было использовать лайки для медиафайлов, постов и
+#   пользователей.
+
+-- Таблица с автором лайка, пользователем, получившим лайк и постом с лайком---------------------------------------------
+CREATE TABLE likes (
+id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT "Идентификатор строки",
+from_user INT UNSIGNED NOT NULL COMMENT "Ссылка на пользователя поставившего лайк",
+to_user INT UNSIGNED NOT NULL COMMENT "Ссылка на получателя лайка",
+message_id INT UNSIGNED NOT NULL COMMENT "Ссылка на пост с лайком",
+date_of_like DATETIME COMMENT "Время лайка", 
+created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT "Время создания строки",  
+updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT "Время обновления строки"
+) COMMENT "Получатель лайка"; 
+
+ALTER TABLE likes ADD CONSTRAINT fk_like_user_from FOREIGN KEY (from_user) REFERENCES users (id);
+ALTER TABLE likes ADD CONSTRAINT fk_like_user_to FOREIGN KEY (to_user) REFERENCES users (id);
+ALTER TABLE likes ADD CONSTRAINT fk_message_id FOREIGN KEY (message_id) REFERENCES messages (id);
+
