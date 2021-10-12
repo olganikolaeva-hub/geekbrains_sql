@@ -80,7 +80,7 @@ WHERE DATE_FORMAT(order_date, '%Y-%m-%d') >= DATE_FORMAT('2017-03-13', '%Y-%m-%d
 GROUP BY orders.order_date) tt ;
 
 -- 3.  Отдельно разобрать пользователей с 1 и 2 покупками за все время, прогнозируем их:
--- 3.1. повторяем аналитику для редко покупающие пользователей
+-- 3.1. повторяем аналитику для редко покупающих пользователей
 CREATE TABLE rarely_users_base as
 SELECT distinct id_user, count(id_order)
 FROM orders
